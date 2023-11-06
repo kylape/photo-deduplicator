@@ -59,12 +59,15 @@ def scan(dirname):
             with open(exif_file_path) as fp:
                 dir_entries = list(load_exif_file(fp))
 
-        jpg_cnt = len([f for f in filenames if f.lower().endswith(".jpg")])
+        jpg_files = {f for f in filenames if f.lower().endswith(".jpg")}
 
-        if not exif_file_exists or jpg_cnt != len(dir_entries):
+        if not exif_file_exists or jpg_files != {e.filename for e in dir_entries}:
+            generated_dir_entries = True
             dir_entries = [exif_entry for exif_entry in scan_dir(dirpath, filenames)]
+        else:
+            generated_dir_entries = False
 
-        if not exif_file_exists:
+        if generated_dir_entries:
             with open(exif_file_path, "w") as fp:
                 for entry in sorted(dir_entries, key=lambda e: e.filename):
                     fp.write(json.dumps(entry.as_dict()) + "\n")
