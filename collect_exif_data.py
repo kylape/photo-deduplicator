@@ -1,67 +1,95 @@
 #!/usr/bin/env python3
 
-from exif import Image
 import argparse
 import os
 import sys
 import json
+import subprocess
+import shlex
 
 EXIF_FILE_NAME = ".exif_data"
+EXIF_IGNORE_NAME = ".exif_ignore"
 
 class ExifEntry:
 
-    def __init__(self, filename="", timestamp="", f_number="", model=""):
+    def __init__(self, filename="", timestamp="", shutter_count="", serial_number="", make=""):
         self.filename = filename
         self.timestamp = timestamp
-        self.f_number = f_number
-        self.model = model
+        self.serial_number = serial_number
+        self.shutter_count = shutter_count
+        self.make = make
 
     def __str__(self):
-        return "%s: timestamp: %s, %s f/%s" % (self.filename, self.timestamp, self.model, self.f_number)
+        return "%s: %s, timestamp: %s, %s, shutter count: %s" % (self.filename, self.make, self.timestamp, self.serial_number, self.shutter_count)
      
     def as_dict(self):
         return {
             "filename": self.filename,
             "timestamp": self.timestamp,
-            "f_number": self.f_number,
-            "model": self.model,
+            "shutter_count": self.shutter_count,
+            "serial_number": self.serial_number,
+            "make": self.make,
         }
     
 
 def load_exif_file(fp):
     for line in fp.readlines():
-        j = json.loads(line)
-        yield ExifEntry(j["filename"], j["timestamp"], j["f_number"], j["model"])
+        try:
+            j = json.loads(line)
+            yield ExifEntry(j["filename"], j["timestamp"], j["shutter_count"], j["serial_number"], j["make"])
+        except Exception as e:
+            pass
 
 
-def extract_exif(path):
-    with open(path, "rb") as fp:
-        img = Image(fp)
+def is_img(f):
+    if "." not in f:
+        return False
 
-        if not img.has_exif:
-            return ExifEntry()
+    ext = f.rsplit(".", 1)[1].lower()
+    return ext in ("nef", "jpg")
 
-        return ExifEntry(
-            timestamp=img.datetime_original,
-            f_number=img.f_number,
-            model=img.model,
-        )
 
+ignore_cache = set()
+
+def is_ignored(dirpath):
+    if os.path.exists(os.path.join(dirpath, EXIF_IGNORE_NAME)):
+        # ignore dirs with the ignore file
+        ignore_cache.add(dirpath)
+        return True
+    
+    for ignored_dir in ignore_cache:
+        if dirpath.startswith(ignored_dir):
+            # ignore all child dirs
+            return True
+
+    return False
 
 def scan(dirname):
     entries = []
     for dirpath, _, filenames in os.walk(dirname):
+
+        if is_ignored(dirpath):
+            continue
+
+        print("Scanning dir %s" % dirpath)
         exif_file_exists = EXIF_FILE_NAME in filenames
         exif_file_path = os.path.join(dirpath, EXIF_FILE_NAME)
+
+        # check if the dir is writeable before running a potentially expensive exiftool command
+        if not os.access(dirpath, os.W_OK):
+            continue
 
         # TODO: Ensure exif file does not need to be regnerated based on something
         if exif_file_exists:
             with open(exif_file_path) as fp:
                 dir_entries = list(load_exif_file(fp))
 
-        jpg_files = {f for f in filenames if f.lower().endswith(".jpg")}
+        img_files = {f.lower() for f in filenames if is_img(f)}
 
-        if not exif_file_exists or jpg_files != {e.filename for e in dir_entries}:
+        if len(img_files) == 0:
+            continue
+
+        if not exif_file_exists or img_files != {e.filename.lower() for e in dir_entries}:
             generated_dir_entries = True
             dir_entries = [exif_entry for exif_entry in scan_dir(dirpath, filenames)]
         else:
@@ -79,12 +107,24 @@ def scan(dirname):
 
 
 def scan_dir(dirpath, filenames):
-    for filename in filenames:
-        fullpath = os.path.join(dirpath, filename.lower())
-        if fullpath.endswith(".jpg"):
-            exif_entry = extract_exif(fullpath)
-            exif_entry.filename = filename
-            yield exif_entry
+    proc = subprocess.run(shlex.split('exiftool -j "%s"' % dirpath), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    raw_json = proc.stdout
+
+    if len(raw_json) == 0:
+        return
+
+    exiftool_data = json.loads(raw_json)
+
+    if proc.returncode != 0:
+        print("Error running exiftool")
+        for e in exiftool_data:
+            if "Error" in e:
+                print("%s: %s" % (os.path.join(dirpath, e["FileName"]), e["Error"]))
+        sys.exit(1)
+
+    for e in exiftool_data:
+        if e["FileTypeExtension"].lower() in ("jpg", "nef") and e.get("Make") in ("NIKON CORPORATION", "Apple"):
+            yield ExifEntry(e["FileName"], e["DateTimeOriginal"], str(e.get("ShutterCount")), str(e.get("SerialNumber")), e.get("Make"))
 
 
 def main():
