@@ -21,6 +21,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("scan_root", help="Root folder to scan")
     parser.add_argument("target_root", help="Root folder to place all images")
+    parser.add_argument("--force", "-f", action="store_true", help="Move instead of copy")
     args = parser.parse_args()
 
     if not os.path.exists(args.scan_root):
@@ -59,7 +60,10 @@ def main():
         dest_file = os.path.join(target_dir, file_name)
 
         if not os.path.exists(dest_file):
-            shutil.copy(to_copy, dest_file)
+            if args.force:
+                os.rename(to_copy, dest_file)
+            else:
+                shutil.copy(to_copy, dest_file)
             print("%s -> %s" % (to_copy, dest_file))
         else:
             print("%s is already copied" % to_copy)
