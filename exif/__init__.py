@@ -31,7 +31,8 @@ class ExifEntry:
         return hash(self.uniq_str())
 
     def uniq_str(self):
-        return "".join([self.timestamp, self.make, self.shutter_count, self.serial_number])
+        file_ext = self.filename.lower().split('.')[-1] if '.' in self.filename else ''
+        return "".join([self.timestamp, self.make, self.shutter_count, self.serial_number, file_ext])
 
     def as_dict(self):
         return {
