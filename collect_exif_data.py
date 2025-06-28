@@ -14,7 +14,7 @@ def is_img(f):
         return False
 
     ext = f.rsplit(".", 1)[1].lower()
-    return ext in ("nef", "jpg")
+    return ext in ("nef", "jpg", "heic", "heif")
 
 
 ignore_cache = set()
@@ -95,7 +95,7 @@ def scan_dir(dirpath, filenames):
     for e in exiftool_data:
         if "Make" not in e or "DateTimeOriginal" not in e:
             continue
-        if e["FileTypeExtension"].lower() in ("jpg", "nef") and e.get("Make").lower() in ("nikon corporation", "apple", "canon", "nikon"):
+        if e["FileTypeExtension"].lower() in ("jpg", "nef", "heic", "heif") and e.get("Make").lower() in ("nikon corporation", "apple", "canon", "nikon"):
             yield exif.ExifEntry(e["FileName"], e["DateTimeOriginal"], str(e.get("ShutterCount")), str(e.get("SerialNumber")), e.get("Make"))
 
 
