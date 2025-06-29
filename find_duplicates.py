@@ -39,6 +39,9 @@ def main():
     folder_dict = defaultdict(set)
 
     for e, path in load_exif_files(args.dir):
+        if "thumb" in path.lower() or "preview" in path.lower():
+            continue
+
         photo_dict[e].append(path)
         folder_dict[os.path.dirname(path)].add(e)
 

@@ -52,6 +52,8 @@ def scan(dirname, strict):
         if exif_file_exists:
             with open(exif_file_path) as fp:
                 dir_entries = list(exif.load_exif_file(fp))
+        else:
+            dir_entries = list()
 
         img_files = {f.lower() for f in filenames if is_img(f)}
 
