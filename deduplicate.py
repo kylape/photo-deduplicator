@@ -31,16 +31,11 @@ def main():
     photo_dict = defaultdict(list)
 
     for e, path in load_exif_files(args.scan_root):
-        photo_dict[e].append(path)
+        photo_dict[e].append(e)
 
     for k, v in photo_dict.items():
         to_copy = v[0]
         
-        for img in v:
-            if img.lower().endswith(".nef"):
-                to_copy = img
-                break
-
         year, month, day = k.timestamp.split()[0].split(":")
         hour, minute, second = k.timestamp.split()[1].split(":")
         target_dir = os.path.join(args.target_root, year, month, day)
@@ -48,25 +43,23 @@ def main():
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
 
-        ext = img.lower().split(".")[-1]
-
         shutter_count_valid = k.shutter_count is not None \
                 and k.shutter_count != "" \
                 and k.shutter_count != "None"
 
         identifier = k.shutter_count if shutter_count_valid else k.make
-        file_name = "%s.%s" % ("-".join([hour, minute, second, identifier]), ext)
+        file_name = "%s.%s" % ("-".join([hour, minute, second, identifier]), e.file_ext)
 
         dest_file = os.path.join(target_dir, file_name)
 
         if not os.path.exists(dest_file):
             if args.force:
-                os.rename(to_copy, dest_file)
+                os.rename(to_copy.path(), dest_file)
             else:
                 shutil.copy(to_copy, dest_file)
-            print("%s -> %s" % (to_copy, dest_file))
+            print("%s -> %s" % (to_copy.path(), dest_file))
         else:
-            print("%s is already copied" % to_copy)
+            print("%s is already copied" % to_copy.path())
 
 if __name__ == "__main__":
     main()

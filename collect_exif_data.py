@@ -8,13 +8,14 @@ import json
 import subprocess
 import shlex
 
+SUPPORTED_FORMATS = ("nef", "jpg", "heic", "heif", "mov", "mp4")
 
 def is_img(f):
     if "." not in f:
         return False
 
     ext = f.rsplit(".", 1)[1].lower()
-    return ext in ("nef", "jpg", "heic", "heif")
+    return ext in SUPPORTED_FORMATS
 
 
 ignore_cache = set()
@@ -60,6 +61,9 @@ def scan(dirname, strict):
         if len(img_files) == 0:
             continue
 
+        if "thumb" in dirpath.lower() or "preview" in dirpath.lower():
+            continue
+
         needs_regen = strict and img_files != {e.filename.lower() for e in dir_entries}
         if not exif_file_exists or needs_regen:
             generated_dir_entries = True
@@ -95,10 +99,16 @@ def scan_dir(dirpath, filenames):
         sys.exit(1)
 
     for e in exiftool_data:
-        if "Make" not in e or "DateTimeOriginal" not in e:
-            continue
-        if e["FileTypeExtension"].lower() in ("jpg", "nef", "heic", "heif") and e.get("Make").lower() in ("nikon corporation", "apple", "canon", "nikon"):
-            yield exif.ExifEntry(e["FileName"], e["DateTimeOriginal"], str(e.get("ShutterCount")), str(e.get("SerialNumber")), e.get("Make"))
+        yield exif.ExifEntry(
+            filename=e["FileName"],
+            dirpath=dirpath,
+            timestamp=e["DateTimeOriginal"],
+            shutter_count=str(e.get("ShutterCount")),
+            serial_number=str(e.get("SerialNumber")),
+            make=e.get("Make"),
+            size=e.get("FileSize"),
+            dimensions=e.get("ImageSize")
+        )
 
 
 def main():

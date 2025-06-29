@@ -6,9 +6,10 @@ import exif
 class TestExifHash:
     """Test the EXIF hash logic for DSLR vs iPhone photos"""
     
-    def test_dslr_hash_includes_shutter_count(self):
-        """DSLR photos should include shutter count in hash"""
-        dslr = exif.ExifEntry('IMG_001.nef', '2023:01:01 12:00:00', '12345', 'SN123', 'Nikon')
+    def test_dslr_hash_includes_all_fields(self):
+        """DSLR photos should include all fields in hash"""
+        dslr = exif.ExifEntry(filename='IMG_001.nef', timestamp='2023:01:01 12:00:00', 
+                            shutter_count='12345', serial_number='SN123', make='Nikon')
         hash_str = dslr.uniq_str()
         
         assert '2023:01:01 12:00:00' in hash_str
@@ -17,68 +18,49 @@ class TestExifHash:
         assert 'SN123' in hash_str
         assert 'nef' in hash_str
     
-    def test_iphone_hash_excludes_shutter_count(self):
-        """iPhone photos should not include shutter count in hash"""
-        iphone = exif.ExifEntry('IMG_002.heic', '2023:01:01 12:00:00', 'None', 'None', 'Apple')
+    def test_iphone_hash_includes_all_fields(self):
+        """iPhone photos should include all fields in hash (including None values)"""
+        iphone = exif.ExifEntry(filename='IMG_002.heic', timestamp='2023:01:01 12:00:00', 
+                              shutter_count='None', serial_number='None', make='Apple')
         hash_str = iphone.uniq_str()
         
         assert '2023:01:01 12:00:00' in hash_str
         assert 'Apple' in hash_str
         assert 'heic' in hash_str
-        assert 'None' not in hash_str
+        assert 'None' in hash_str  # Now includes None values
     
-    def test_iphone_different_formats_not_duplicates(self):
-        """iPhone photos in different formats should not be considered duplicates"""
-        iphone_heic = exif.ExifEntry('IMG_003.heic', '2023:01:01 12:00:00', 'None', 'None', 'Apple')
-        iphone_jpg = exif.ExifEntry('IMG_003.jpg', '2023:01:01 12:00:00', 'None', 'None', 'Apple')
+    def test_different_formats_not_duplicates(self):
+        """Photos in different formats should not be considered duplicates"""
+        heic = exif.ExifEntry(filename='IMG_003.heic', timestamp='2023:01:01 12:00:00', 
+                            shutter_count='None', serial_number='None', make='Apple')
+        jpg = exif.ExifEntry(filename='IMG_003.jpg', timestamp='2023:01:01 12:00:00', 
+                           shutter_count='None', serial_number='None', make='Apple')
         
-        assert iphone_heic != iphone_jpg
-        assert iphone_heic.uniq_str() != iphone_jpg.uniq_str()
+        assert heic != jpg
+        assert heic.uniq_str() != jpg.uniq_str()
     
-    def test_dslr_different_formats_not_duplicates(self):
-        """DSLR photos in different formats should not be considered duplicates"""
-        dslr_nef = exif.ExifEntry('IMG_004.nef', '2023:01:01 14:00:00', '54321', 'SN456', 'Nikon')
-        dslr_jpg = exif.ExifEntry('IMG_004.jpg', '2023:01:01 14:00:00', '54321', 'SN456', 'Nikon')
+    def test_same_photos_with_different_filenames_are_duplicates(self):
+        """Photos with same metadata but different filenames should be duplicates"""
+        photo1 = exif.ExifEntry(filename='IMG_005.heic', timestamp='2023:01:01 15:00:00', 
+                              shutter_count='None', serial_number='None', make='Apple')
+        photo2 = exif.ExifEntry(filename='different_name.heic', timestamp='2023:01:01 15:00:00', 
+                              shutter_count='None', serial_number='None', make='Apple')
         
-        assert dslr_nef != dslr_jpg
-        assert dslr_nef.uniq_str() != dslr_jpg.uniq_str()
+        assert photo1 == photo2  # Same metadata, different filename
+        assert photo1.uniq_str() == photo2.uniq_str()
     
-    def test_same_iphone_photos_are_duplicates(self):
-        """Identical iPhone photos should be considered duplicates"""
-        iphone1 = exif.ExifEntry('IMG_005.heic', '2023:01:01 15:00:00', 'None', 'None', 'Apple')
-        iphone2 = exif.ExifEntry('IMG_006.heic', '2023:01:01 15:00:00', 'None', 'None', 'Apple')
+    def test_size_and_dimensions_affect_hash(self):
+        """Photos with different size or dimensions should not be duplicates"""
+        photo1 = exif.ExifEntry(filename='IMG_007.jpg', timestamp='2023:01:01 16:00:00', 
+                              make='Apple', size='1000000', dimensions='1920x1080')
+        photo2 = exif.ExifEntry(filename='IMG_007.jpg', timestamp='2023:01:01 16:00:00', 
+                              make='Apple', size='2000000', dimensions='1920x1080')  # Different size
+        photo3 = exif.ExifEntry(filename='IMG_007.jpg', timestamp='2023:01:01 16:00:00', 
+                              make='Apple', size='1000000', dimensions='4032x3024')  # Different dimensions
         
-        assert iphone1 == iphone2
-        assert iphone1.uniq_str() == iphone2.uniq_str()
-    
-    def test_same_dslr_photos_are_duplicates(self):
-        """Identical DSLR photos should be considered duplicates"""
-        dslr1 = exif.ExifEntry('IMG_007.nef', '2023:01:01 16:00:00', '99999', 'SN789', 'Canon')
-        dslr2 = exif.ExifEntry('IMG_008.nef', '2023:01:01 16:00:00', '99999', 'SN789', 'Canon')
-        
-        assert dslr1 == dslr2
-        assert dslr1.uniq_str() == dslr2.uniq_str()
-    
-    def test_empty_shutter_count_uses_iphone_logic(self):
-        """Photos with empty shutter count should use iPhone hash logic"""
-        photo = exif.ExifEntry('IMG_009.jpg', '2023:01:01 17:00:00', '', '', 'Apple')
-        hash_str = photo.uniq_str()
-        
-        assert '2023:01:01 17:00:00' in hash_str
-        assert 'Apple' in hash_str
-        assert 'jpg' in hash_str
-        # Should not contain empty strings
-        assert hash_str == '2023:01:01 17:00:00Applejpg'
-    
-    def test_none_shutter_count_uses_iphone_logic(self):
-        """Photos with None shutter count should use iPhone hash logic"""
-        photo = exif.ExifEntry('IMG_010.heif', '2023:01:01 18:00:00', None, None, 'Apple')
-        hash_str = photo.uniq_str()
-        
-        assert '2023:01:01 18:00:00' in hash_str
-        assert 'Apple' in hash_str
-        assert 'heif' in hash_str
-        assert hash_str == '2023:01:01 18:00:00Appleheif'
+        assert photo1 != photo2  # Different size
+        assert photo1 != photo3  # Different dimensions
+        assert photo2 != photo3  # Both different
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
