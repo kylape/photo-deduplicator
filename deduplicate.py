@@ -34,14 +34,23 @@ def collect_all_files(dirname):
         if not img_files:
             continue
 
-        print(f"Scanning dir {dirpath}")
+        exif_file_exists = exif.EXIF_FILE_NAME in filenames
+        exif_file_path = os.path.join(dirpath, exif.EXIF_FILE_NAME)
 
-        try:
-            for entry in scan_dir(dirpath, filenames):
-                yield entry
-        except Exception as e:
-            print(f"Error scanning {dirpath}: {e}")
-            continue
+        if exif_file_exists:
+            print(f"Reading existing exif file in {dirpath}")
+            with open(exif_file_path) as fp:
+                for entry in exif.load_exif_file(fp):
+                    yield entry
+        else:
+            print(f"Scanning dir {dirpath}")
+
+            try:
+                for entry in scan_dir(dirpath, filenames):
+                    yield entry
+            except Exception as e:
+                print(f"Error scanning {dirpath}: {e}")
+                continue
 
 
 def handle_noexif_file(noexif_file, target_root, scan_root, existing_hashes, hash_file_path, force_move=False):

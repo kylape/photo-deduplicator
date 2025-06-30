@@ -99,7 +99,11 @@ def scan_dir(dirpath, filenames):
                 print("%s: %s" % (os.path.join(dirpath, e["FileName"]), e["Error"]))
         sys.exit(1)
 
-    for e in exiftool_data:
+    yield_from_exiftool_data(exiftool_data)
+
+
+def yield_from_exiftool_data(data):
+    for e in data:
         # Check if file has timestamp data
         if "DateTimeOriginal" in e and e["DateTimeOriginal"]:
             yield exif.ExifEntry(
