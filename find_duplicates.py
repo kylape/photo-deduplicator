@@ -19,7 +19,7 @@ def load_exif_files(dirname):
 def raw_dupe(exif, paths):
     if len(paths) != 2:
         return False
-    
+
     img_exts = {"nef", "jpg"}
 
     return paths[0][:-3] == paths[1][:-3] and {paths[0][-3:].lower(), paths[1][-3:].lower()} == img_exts

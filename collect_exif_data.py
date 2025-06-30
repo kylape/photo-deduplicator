@@ -25,7 +25,7 @@ def is_ignored(dirpath):
         # ignore dirs with the ignore file
         ignore_cache.add(dirpath)
         return True
-    
+
     for ignored_dir in ignore_cache:
         if dirpath.startswith(ignored_dir):
             # ignore all child dirs
@@ -74,7 +74,8 @@ def scan(dirname, strict):
         if generated_dir_entries:
             with open(exif_file_path, "w") as fp:
                 for entry in sorted(dir_entries, key=lambda e: e.filename):
-                    fp.write(json.dumps(entry.as_dict()) + "\n")
+                    if isinstance(entry, exif.ExifEntry):
+                        fp.write(json.dumps(entry.as_dict()) + "\n")
 
         entries.extend(dir_entries)
     for entry in entries:
@@ -99,16 +100,29 @@ def scan_dir(dirpath, filenames):
         sys.exit(1)
 
     for e in exiftool_data:
-        yield exif.ExifEntry(
-            filename=e["FileName"],
-            dirpath=dirpath,
-            timestamp=e["DateTimeOriginal"],
-            shutter_count=str(e.get("ShutterCount")),
-            serial_number=str(e.get("SerialNumber")),
-            make=e.get("Make"),
-            size=e.get("FileSize"),
-            dimensions=e.get("ImageSize")
-        )
+        # Check if file has timestamp data
+        if "DateTimeOriginal" in e and e["DateTimeOriginal"]:
+            yield exif.ExifEntry(
+                filename=e["FileName"],
+                dirpath=dirpath,
+                timestamp=e["DateTimeOriginal"],
+                shutter_count=str(e.get("ShutterCount")),
+                serial_number=str(e.get("SerialNumber")),
+                make=e.get("Make"),
+                size=e.get("FileSize"),
+                dimensions=e.get("ImageSize")
+            )
+        else:
+            # File without EXIF timestamp - create NoExifFile entry
+            file_path = os.path.join(dirpath, e["FileName"])
+            file_hash = exif.calculate_file_hash(file_path)
+            if file_hash:
+                yield exif.NoExifFile(
+                    filename=e["FileName"],
+                    dirpath=dirpath,
+                    file_hash=file_hash,
+                    size=str(e.get("FileSize", ""))
+                )
 
 
 def main():
