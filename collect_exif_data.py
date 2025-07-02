@@ -52,7 +52,7 @@ def scan(dirname, strict):
         # TODO: Ensure exif file does not need to be regnerated based on something
         if exif_file_exists:
             with open(exif_file_path) as fp:
-                dir_entries = list(exif.load_exif_file(fp))
+                dir_entries = list(exif.load_exif_file(fp, dirpath))
         else:
             dir_entries = list()
 
@@ -74,8 +74,7 @@ def scan(dirname, strict):
         if generated_dir_entries:
             with open(exif_file_path, "w") as fp:
                 for entry in sorted(dir_entries, key=lambda e: e.filename):
-                    if isinstance(entry, exif.ExifEntry):
-                        fp.write(json.dumps(entry.as_dict()) + "\n")
+                    fp.write(json.dumps(entry.as_dict()) + "\n")
 
         entries.extend(dir_entries)
     for entry in entries:
@@ -99,34 +98,8 @@ def scan_dir(dirpath, filenames):
                 print("%s: %s" % (os.path.join(dirpath, e["FileName"]), e["Error"]))
         sys.exit(1)
 
-    yield_from_exiftool_data(exiftool_data)
-
-
-def yield_from_exiftool_data(data):
-    for e in data:
-        # Check if file has timestamp data
-        if "DateTimeOriginal" in e and e["DateTimeOriginal"]:
-            yield exif.ExifEntry(
-                filename=e["FileName"],
-                dirpath=dirpath,
-                timestamp=e["DateTimeOriginal"],
-                shutter_count=str(e.get("ShutterCount")),
-                serial_number=str(e.get("SerialNumber")),
-                make=e.get("Make"),
-                size=e.get("FileSize"),
-                dimensions=e.get("ImageSize")
-            )
-        else:
-            # File without EXIF timestamp - create NoExifFile entry
-            file_path = os.path.join(dirpath, e["FileName"])
-            file_hash = exif.calculate_file_hash(file_path)
-            if file_hash:
-                yield exif.NoExifFile(
-                    filename=e["FileName"],
-                    dirpath=dirpath,
-                    file_hash=file_hash,
-                    size=str(e.get("FileSize", ""))
-                )
+    for e in exiftool_data:
+        yield exif.from_exif_entry(e, dirpath)
 
 
 def main():

@@ -9,15 +9,6 @@ import shutil
 from collections import defaultdict
 
 
-def load_exif_files(dirname):
-    """Load both EXIF and NoExif files from directory structure"""
-    for dirpath, _, filenames in os.walk(dirname):
-        if exif.EXIF_FILE_NAME in filenames:
-            with open(os.path.join(dirpath, exif.EXIF_FILE_NAME)) as fp:
-                for e in exif.load_exif_file(fp):
-                    yield e, os.path.join(dirpath, e.filename)
-
-
 def collect_all_files(dirname):
     """Collect all files (both EXIF and NoExif) by scanning directory"""
     from collect_exif_data import scan_dir, is_img, is_ignored
@@ -40,7 +31,7 @@ def collect_all_files(dirname):
         if exif_file_exists:
             print(f"Reading existing exif file in {dirpath}")
             with open(exif_file_path) as fp:
-                for entry in exif.load_exif_file(fp):
+                for entry in exif.load_exif_file(fp, dirpath):
                     yield entry
         else:
             print(f"Scanning dir {dirpath}")

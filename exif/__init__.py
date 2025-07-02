@@ -52,14 +52,14 @@ class ExifEntry:
 
     def as_dict(self):
         return {
-            "filename": self.filename,
-            "dirpath": self.dirpath,
-            "timestamp": self.timestamp,
-            "shutter_count": self.shutter_count,
-            "serial_number": self.serial_number,
-            "make": self.make,
-            "size": self.size,
-            "dimensions": self.dimensions,
+            "FileName": self.filename,
+            "Dirpath": self.dirpath,
+            "DateTimeOriginal": self.timestamp,
+            "ShutterCount": self.shutter_count,
+            "SerialNumber": self.serial_number,
+            "Make": self.make,
+            "FileSize": self.size,
+            "ImageSize": self.dimensions,
         }
 
 
@@ -96,6 +96,14 @@ class NoExifFile:
         except ValueError:
             # Fall back for non-hex test strings
             return hash(self.file_hash)
+
+    def as_dict(self):
+        return {
+            "FileName": self.filename,
+            "Dirpath": self.dirpath,
+            "FileHash": self.file_hash,
+            "FileSize": self.size,
+        }
 
 
 def calculate_file_hash(file_path, chunk_size=8192):
@@ -135,16 +143,33 @@ def save_hash_to_file(hash_file_path, file_hash):
         print(f"Error writing to hash file {hash_file_path}: {e}")
 
 
-def load_exif_file(fp):
+def load_exif_file(fp, dirpath):
     for line in fp.readlines():
         j = json.loads(line)
-        yield ExifEntry(
-            filename=j["filename"],
-            dirpath=j["dirpath"],
-            timestamp=j["timestamp"],
-            serial_number=j["serial_number"],
-            shutter_count=j["shutter_count"],
-            make=j["make"],
-            size=j["size"],
-            dimensions=j["dimensions"],
+        yield from_exif_entry(j, dirpath)
+
+
+def from_exif_entry(e, dirpath):
+    # Check if file has timestamp data
+    if "DateTimeOriginal" in e and e["DateTimeOriginal"]:
+        return ExifEntry(
+            filename=e["FileName"],
+            dirpath=dirpath,
+            timestamp=e["DateTimeOriginal"],
+            shutter_count=str(e.get("ShutterCount")),
+            serial_number=str(e.get("SerialNumber")),
+            make=e.get("Make"),
+            size=e.get("FileSize"),
+            dimensions=e.get("ImageSize")
+        )
+    else:
+        # File without EXIF timestamp - create NoExifFile entry
+        file_path = os.path.join(dirpath, e["FileName"])
+        file_hash = e["FileHash"] if "FileHash" in e else calculate_file_hash(file_path) 
+
+        return NoExifFile(
+            filename=e["FileName"],
+            dirpath=dirpath,
+            file_hash=file_hash,
+            size=str(e.get("FileSize", ""))
         )
